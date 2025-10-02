@@ -27,9 +27,9 @@ function getJstTodayStrings() {
   const m = jst.getMonth() + 1;
   const d = jst.getDate();
 
-  const md  = `${m}/${d}`;                         // 例: "8/22"
-  const ymd = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`; // 例: "2025/08/22"
-  const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; // 例: "2025-08-22"
+  const md  = `${m}/${d}`;                         
+  const ymd = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}`;
+  const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   return { md, ymd, iso };
 }
 
@@ -38,7 +38,7 @@ async function fetchPlayCount(url) {
     const res = await axios.get(url, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       timeout: 15000,
-      maxContentLength: 20 * 1024 * 1024, // 20MBガード
+      maxContentLength: 20 * 1024 * 1024,
     });
     const html = res.data;
     const match = html.match(/["']?playCount["']?\s*[:=]\s*(\d+)/i);
@@ -69,12 +69,12 @@ async function fetchPlayCount(url) {
   const rowCount = sheet.rowCount;
   const colCount = sheet.columnCount;
 
-  // 1) ヘッダー1行だけ読み込む（軽量）
+  // 1) ヘッダー1行だけ読み込む
   await sheet.loadCells(`A1:${columnToLetter(colCount)}1`);
 
   const { md, ymd, iso } = getJstTodayStrings();
 
-  // 2) 今日の列（targetCol）を探す（A列=URLは除外、B列=1から検索）
+  // 2) 今日の列を探す
   let targetCol = null;
   for (let col = 1; col < colCount; col++) {
     const c = sheet.getCell(0, col);
@@ -86,13 +86,13 @@ async function fetchPlayCount(url) {
     }
   }
 
-  // 3) なければ最初の空き列に "M/D" 文字列で作成（形式指定なし）
+  // 3) なければ空き列に追加
   if (targetCol === null) {
     for (let col = 1; col < colCount; col++) {
       const c = sheet.getCell(0, col);
       const hasVal = c.value !== null && c.value !== undefined && c.value !== '';
       if (!hasVal) {
-        c.value = md; // ただの文字列でOK（後でGASが整形する想定）
+        c.value = md;
         targetCol = col;
         break;
       }
@@ -101,20 +101,20 @@ async function fetchPlayCount(url) {
       console.error('❌ 空き列がありません（列数を増やしてください）');
       process.exit(1);
     }
-    await sheet.saveUpdatedCells(); // ヘッダー書き込みを反映
+    await sheet.saveUpdatedCells();
   }
 
   const targetColLetter = columnToLetter(targetCol + 1);
-  console.log(`🗓  書き込み先ヘッダー列: ${targetColLetter} (index=${targetCol})`);
+  console.log(`🗓 書き込み先ヘッダー列: ${targetColLetter} (index=${targetCol})`);
 
-  // 4) 本体は100行ずつ、A列と書き込み列だけ読み書き
-  for (let startRow = 1; startRow < rowCount; startRow += CHUNK_SIZE) {
+  // 4) D5:D を対象に100行ずつ処理
+  for (let startRow = 4; startRow < rowCount; startRow += CHUNK_SIZE) {
     const endRow = Math.min(rowCount - 1, startRow + CHUNK_SIZE - 1);
 
-    const aStart = startRow + 1; // A1基準に変換
+    const aStart = startRow + 1; // 表示上の行番号
     const aEnd   = endRow + 1;
 
-    const urlRange = `A${aStart}:A${aEnd}`;
+    const urlRange = `D${aStart}:D${aEnd}`;
     const outRange = `${targetColLetter}${aStart}:${targetColLetter}${aEnd}`;
 
     await sheet.loadCells(urlRange);
@@ -123,7 +123,7 @@ async function fetchPlayCount(url) {
     let wrote = 0;
 
     for (let r = startRow; r <= endRow; r++) {
-      const urlCell = sheet.getCell(r, 0);         // A列（URL）
+      const urlCell = sheet.getCell(r, 3);         // D列 (colIndex=3)
       const outCell = sheet.getCell(r, targetCol); // 今日の列
       const url     = (urlCell.value || '').toString().trim();
 
@@ -131,12 +131,12 @@ async function fetchPlayCount(url) {
       if (url && url.startsWith('http') && url.includes('tiktok.com')) {
         playCount = await fetchPlayCount(url);
       } else {
-        playCount = 0; // 無効URL/空白は 0 記録
+        playCount = 0;
       }
 
       if (!Number.isFinite(playCount)) playCount = 0;
 
-      outCell.value = playCount; // 数値で書く
+      outCell.value = playCount;
       outCell.numberFormat = { type: 'NUMBER', pattern: '0' };
       wrote++;
       console.log(`✅ 行${r + 1} → ${playCount}`);
