@@ -3,8 +3,8 @@ const { GoogleSpreadsheet } = require('google-spreadsheet');
 const axios = require('axios');
 
 // ===== 設定 =====
-const SHEET_ID   = '1vm6JyX8a8Bt5FX4xE6CGgtRUYMh7gXzHhPAxnEooH_8';
-const SHEET_NAME = 'Vin計測ツール';
+const SHEET_ID   = '1sy38Ynd995EQ4Jo7dt6EPF7vs7ZSRNBl7P5zwnPoRbhI_z_3OUI50AsJ';
+const SHEET_NAME = '投稿再生回数データ';
 const CHUNK_SIZE = 100;        // 100行ごとに処理
 // =================
 
