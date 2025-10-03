@@ -1,9 +1,9 @@
-// fetchPlayCountAndWrite.js — D列URL → E列以降に再生回数を記録
+// fetchPlayCountAndWrite.js — C列URL → E列以降に再生回数を記録
 const { GoogleSpreadsheet } = require('google-spreadsheet');
 const axios = require('axios');
 
 // ===== 設定 =====
-const SHEET_ID   = '1AxC0adC4S2Prwo6FdBn9cVq2enM-2d_-vb_xBWuzZec';
+const SHEET_ID   = '1wVFefWuElsq7krWpZjTVcerYOHX7SeBTQujVXI7bdXk';
 const SHEET_NAME = '投稿再生回数データ';
 const CHUNK_SIZE = 100;        // 100行ごとに処理
 // =================
@@ -19,7 +19,6 @@ function columnToLetter(col) {
 }
 
 function getJstTodayStrings() {
-  // JSTの今日。ヘッダーは "M/D" の文字列
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   const jst = new Date(utc + 9 * 3600000);
@@ -51,7 +50,6 @@ async function fetchPlayCount(url) {
 }
 
 (async () => {
-  // 認証（環境変数 GOOGLE_CREDS_BASE64 を想定）
   const creds = JSON.parse(
     Buffer.from(process.env.GOOGLE_CREDS_BASE64, 'base64').toString('utf-8')
   );
@@ -69,12 +67,10 @@ async function fetchPlayCount(url) {
   const rowCount = sheet.rowCount;
   const colCount = sheet.columnCount;
 
-  // 1) ヘッダー行を読み込み
   await sheet.loadCells(`A1:${columnToLetter(colCount)}1`);
 
   const { md, ymd, iso } = getJstTodayStrings();
 
-  // 2) 今日の列を探す（E列 = index 4 以降のみ）
   let targetCol = null;
   for (let col = 4; col < colCount; col++) {
     const c = sheet.getCell(0, col);
@@ -86,13 +82,12 @@ async function fetchPlayCount(url) {
     }
   }
 
-  // 3) 見つからなければ、E列以降で空き列を追加
   if (targetCol === null) {
     for (let col = 4; col < colCount; col++) {
       const c = sheet.getCell(0, col);
       const hasVal = c.value !== null && c.value !== undefined && c.value !== '';
       if (!hasVal) {
-        c.value = md;  // 今日の日付をセット
+        c.value = md;
         targetCol = col;
         break;
       }
@@ -107,14 +102,14 @@ async function fetchPlayCount(url) {
   const targetColLetter = columnToLetter(targetCol + 1);
   console.log(`🗓 書き込み先ヘッダー列: ${targetColLetter} (index=${targetCol})`);
 
-  // 4) D5:D を対象に100行ずつ処理
+  // 4) C5:C を対象に100行ずつ処理
   for (let startRow = 4; startRow < rowCount; startRow += CHUNK_SIZE) {
     const endRow = Math.min(rowCount - 1, startRow + CHUNK_SIZE - 1);
 
-    const aStart = startRow + 1; // 表示上の行番号
+    const aStart = startRow + 1;
     const aEnd   = endRow + 1;
 
-    const urlRange = `D${aStart}:D${aEnd}`;
+    const urlRange = `C${aStart}:C${aEnd}`;
     const outRange = `${targetColLetter}${aStart}:${targetColLetter}${aEnd}`;
 
     await sheet.loadCells(urlRange);
@@ -123,15 +118,13 @@ async function fetchPlayCount(url) {
     let wrote = 0;
 
     for (let r = startRow; r <= endRow; r++) {
-      const urlCell = sheet.getCell(r, 3);         // D列 (index=3)
-      const outCell = sheet.getCell(r, targetCol); // 今日の列
+      const urlCell = sheet.getCell(r, 2);         // C列 (index=2)
+      const outCell = sheet.getCell(r, targetCol);
       const url     = (urlCell.value || '').toString().trim();
 
       let playCount = 0;
       if (url && url.startsWith('http') && url.includes('tiktok.com')) {
         playCount = await fetchPlayCount(url);
-      } else {
-        playCount = 0;
       }
 
       if (!Number.isFinite(playCount)) playCount = 0;
